@@ -1,0 +1,199 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "type": "object",
+  "properties": {
+    "out_dir": {
+      "type": "string",
+      "format": "directory-path",
+      "default": "output",
+      "hidden": true
+    }
+  },
+  "$id": "afla-cftr-illumina/nextflow_schema.json",
+  "title": "afla-cftr-illumina",
+  "workflow_title": "AFLA CFTR Illumina",
+  "description": "CFTR analysis of targeted Illumina data: read alignment, small variants, poly-T/TG, exon deletions and duplications, optional Ensembl VEP and ClinVar annotation, and a one-page report per sample with CFTR2 classes. Education and research use only, not for clinical use.",
+  "url": "",
+  "resources": {
+    "recommended": {
+      "cpus": 12,
+      "memory": "32GB"
+    },
+    "minimum": {
+      "cpus": 4,
+      "memory": "16GB"
+    },
+    "run_time": "A CFTR panel run: about 10-30 minutes.",
+    "arm_support": false
+  },
+  "definitions": {
+    "input": {
+      "title": "Input",
+      "type": "object",
+      "fa_icon": "fas fa-arrow-right",
+      "description": "Reads for all samples of the run.",
+      "properties": {
+        "fastq": {
+          "title": "FASTQ folder",
+          "type": "string",
+          "format": "directory-path",
+          "description": "Folder with paired Illumina FASTQ files of all samples in the run (*_R1_001 / *_R2_001, *_R1 / *_R2, or *_1 / *_2; .fastq.gz). Sub-folders are searched too.",
+          "help_text": "Lanes of one sample are joined. Include at least 4 samples from the run: exon deletions and duplications are found by comparing samples with each other."
+        }
+      },
+      "required": [
+        "fastq"
+      ]
+    },
+    "reference": {
+      "title": "Reference and target regions",
+      "type": "object",
+      "fa_icon": "fas fa-dna",
+      "required": [
+        "ref"
+      ],
+      "properties": {
+        "ref": {
+          "title": "Reference genome (FASTA)",
+          "type": "string",
+          "format": "file-path",
+          "description": "GRCh38 reference FASTA with chr names (chr7).",
+          "help_text": "bwa index files (.amb .ann .bwt .pac .sa) should sit next to it. The .fai and .dict files are made automatically if missing."
+        },
+        "build_bwa_index": {
+          "title": "Build bwa index if missing",
+          "type": "boolean",
+          "default": false,
+          "description": "Builds the aligner index for the reference (about 1 hour and ~5 GB, needed once). It is saved in the output folder under reference/; copy it next to the FASTA to reuse it."
+        },
+        "primer_bed": {
+          "title": "Amplicon probe/primer positions (BED, optional)",
+          "type": "string",
+          "format": "file-path",
+          "description": "Primer positions of your panel (BED), so primer bases are not counted as patient bases. Strongly recommended: without it the report carries a warning.",
+          "help_text": "Make one from an Illumina TruSight/TSCA manifest with scripts/manifest-to-grch38.py (it also writes the matching targets BED). For amplicon panels set 'Padding around targets' to 0."
+        },
+        "bed": {
+          "title": "Target regions (optional)",
+          "type": "string",
+          "format": "file-path",
+          "description": "BED file of the regions your panel targets. Variants are called there. If empty, all CFTR exons +/-25 bases and selected deep intronic sites are used. Coverage is always judged against that CFTR list."
+        },
+        "cftr2_list": {
+          "title": "CFTR2 variant list",
+          "type": "string",
+          "format": "file-path",
+          "description": "CFTR2 variant list (.xlsx, downloaded from cftr2.org after accepting its usage agreement). Used to classify variants; without it the report says so."
+        }
+      }
+    },
+    "annotation": {
+      "title": "Annotation sources",
+      "type": "object",
+      "fa_icon": "fas fa-book-medical",
+      "description": "Local files, so annotation works offline. Leave optional sources empty to skip them.",
+      "properties": {
+        "run_annotation": {
+          "title": "5. Annotate variants (Ensembl VEP)",
+          "type": "boolean",
+          "default": true,
+          "description": "Adds gene, consequence, HGVS, gnomAD frequency, ClinVar, REVEL and AlphaMissense (sources set below)."
+        },
+        "vep_cache": {
+          "title": "VEP cache folder",
+          "type": "string",
+          "format": "directory-path",
+          "description": "Folder that contains homo_sapiens/<version>_GRCh38 (the offline Ensembl cache; includes gnomAD v4.1 frequencies)."
+        },
+        "vep_cache_version": {
+          "title": "VEP cache version",
+          "type": "integer",
+          "default": 115,
+          "description": "Must match the cache folder and the VEP container (115)."
+        },
+        "clinvar_vcf": {
+          "title": "ClinVar VCF (optional)",
+          "type": "string",
+          "format": "file-path",
+          "description": "clinvar_GRCh38.vcf.gz with its .tbi index (monthly releases from NCBI). Choose the data file itself (if you pick its .fai/.tbi index by mistake, the workflow uses the file next to it)."
+        }
+      }
+    },
+    "report": {
+      "title": "Report",
+      "type": "object",
+      "fa_icon": "fas fa-file-medical",
+      "properties": {
+        "report_min_depth": {
+          "title": "Minimum depth",
+          "type": "integer",
+          "default": 20,
+          "enum": [
+            20,
+            50,
+            100
+          ],
+          "description": "A target with bases below this depth is flagged in red as a gap in the report."
+        }
+      }
+    },
+    "output": {
+      "title": "Output and resources",
+      "type": "object",
+      "fa_icon": "fas fa-folder-open",
+      "properties": {
+        "threads": {
+          "title": "CPU threads",
+          "type": "integer",
+          "default": 12,
+          "minimum": 1,
+          "description": "Maximum CPU threads for the heavy steps (alignment, calling, annotation)."
+        }
+      }
+    },
+    "misc": {
+      "title": "Miscellaneous",
+      "type": "object",
+      "properties": {
+        "disable_ping": {
+          "type": "boolean",
+          "default": true,
+          "hidden": true,
+          "description": "Not used."
+        },
+        "help": {
+          "type": "boolean",
+          "default": false,
+          "hidden": true,
+          "description": "Not used."
+        },
+        "version": {
+          "type": "boolean",
+          "default": false,
+          "hidden": true,
+          "description": "Not used."
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "$ref": "#/definitions/input"
+    },
+    {
+      "$ref": "#/definitions/reference"
+    },
+    {
+      "$ref": "#/definitions/annotation"
+    },
+    {
+      "$ref": "#/definitions/report"
+    },
+    {
+      "$ref": "#/definitions/output"
+    },
+    {
+      "$ref": "#/definitions/misc"
+    }
+  ]
+}
